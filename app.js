@@ -1,28 +1,118 @@
 var express = require('express');
-var bodyParser = require('body-parser');
-	ejs = require('ejs'),
-	methodOverride = require('method-override'),
-	pg = require("pg");
-
-var app = express();
+   bodyParser = require('body-parser'),
+   db = require("./models"),
+   session = require("express-session"),
+    ejs = require('ejs'),
+    methodOverride = require('method-override'),
+    pg = require("pg"),
+    app = express();
 
 app.set('view engine', 'ejs');
 app.use(bodyParser.urlencoded({extended: true}));
 
-// Refactor connection and query code
-var db = require("./models");
-
-//  article routes
-//  normal code - needs to be refracted to associate w/ authors
+app.use(session({
+    secret: 'super secret',
+    resave: false,
+    saveUninitialized: true
+}));
 
 // app.get('/articles', function(req,res) {
-// 	db.Article.all().then(function(dbArticle) {
-// 		res.render('article/index', {articlesList: dbArticles})
-// 	});
+//     db.Article.all().then(function(dbArticle) {
+//         res.render('article/index', {articlesList: dbArticles})
+//     });
 //   console.log("GET /articles");
 //   res.send("Set up a response for this route!");
 // });
 
+//***NEW CODE FOR AUTHENTICATION***
+
+// *** PART 1 - SETUP
+
+app.use("/", function (req, res, next) {
+    req.login = function (user) {
+        req.session.userId = user.id;
+    };
+
+// this will request the current user's id
+    req.currentUser = function() {
+        return db.User.find({
+            where: {
+                id: req.session.userId
+            }
+        }).
+        // this will return the requested user
+        then(function(user) {
+            req.user = user;
+            return user;
+        })
+    };
+    // this will request the logout of the session for the user
+    req.logout = function() {
+        req.session.userId = null;
+        req.user = null;
+    }
+
+    next();
+});
+
+// have to get the signup route and let user know it is coming soon
+app.get("/signup", function (req, res) {
+    res.render("signup");
+});
+
+app.post('/signup', function (req, res) {
+  var user = req.body.user;
+    db.User.createSecure(user.email, user.password)
+     .then(function(dbUser) {
+         res.redirect("/login");
+     });
+});
+
+// this is where the user will submit the sign up form
+
+
+// this should request the user's id at the login in general (specific and
+// current users will come next)
+
+
+//*** PART 2 - ROUTING
+
+
+// this code will redirect the user from the login route to their 
+// profile route
+
+// this is what the the route to profile will show to the user
+
+app.get("/login", function (req, res) {
+    res.render("login");
+});
+
+//where the form goes
+
+app.post("/login", function (req, res) {
+   var user = req.body.user;
+   
+   db.User.
+   authenticate(user.email, user.password).
+   then(function (user) {
+       req.login(user);
+       res.redirect("/profile");
+   });
+});
+
+
+app.get("/profile", function (req, res) {
+    req.currentUser().
+        then(function (user) {
+            res.render("profile.ejs", {user: user});
+        })
+});
+
+
+
+
+
+//***ORIGINAL CODE FROM FIRST ASSIGNMENT***
 app.get('/articles', function(req,res) {
   db.Article.findAll({ include: db.Author })
   	.then(function(dbArticles) {
